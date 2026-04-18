@@ -68,7 +68,16 @@ export async function fetchBuses(apiKey: string): Promise<VehicleRow[]> {
     const json: any = await res.json();
     const apiErr = json?.["bustime-response"]?.error;
     if (Array.isArray(apiErr) && apiErr.length > 0) {
-      throw new Error(`Bus API error: ${apiErr.map((e: any) => e?.msg ?? JSON.stringify(e)).join("; ")}`);
+      // "No data found for parameter" means that route has no active vehicles
+      // right now (e.g. late evening, or a route that only runs rush hours).
+      // It's per-route, not fatal — only throw on real errors like a bad key.
+      const realErrors = apiErr.filter((e: any) => {
+        const msg = String(e?.msg ?? "").toLowerCase();
+        return !msg.includes("no data found for parameter");
+      });
+      if (realErrors.length > 0) {
+        throw new Error(`Bus API error: ${realErrors.map((e: any) => e?.msg ?? JSON.stringify(e)).join("; ")}`);
+      }
     }
     const vehicles = json?.["bustime-response"]?.vehicle ?? [];
     for (const v of vehicles) {
