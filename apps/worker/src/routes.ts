@@ -41,6 +41,8 @@ export const BUS_ROUTES: TrackedRoute[] = [
   { route_id: "146", mode: "bus", name: "#146 Inner Drive/Michigan Express", color: "#2E7D32" },
   { route_id: "147", mode: "bus", name: "#147 Outer DuSable Lake Shore Express", color: "#2E7D32" },
   { route_id: "151", mode: "bus", name: "#151 Sheridan", color: "#2E7D32" },
+  { route_id: "171", mode: "bus", name: "#171 U. of Chicago/Hyde Park", color: "#800000" },
+  { route_id: "172", mode: "bus", name: "#172 U. of Chicago/Kenwood", color: "#500000" },
 ];
 
 export const ALL_ROUTES: TrackedRoute[] = [...TRAIN_ROUTES, ...BUS_ROUTES];
