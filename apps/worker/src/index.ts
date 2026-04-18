@@ -23,12 +23,12 @@ async function tick(): Promise<void> {
   }
 
   if (rows.length > 0) {
-    const { error } = await supabase.from("vehicles").upsert(rows, { onConflict: "vehicle_id" });
+    const { error } = await supabase.from("transit_vehicles").upsert(rows, { onConflict: "vehicle_id" });
     if (error) errors.push(`upsert: ${error.message}`);
   }
 
   const cutoff = new Date(Date.now() - STALE_AFTER_MINUTES * 60_000).toISOString();
-  const { error: pruneErr } = await supabase.from("vehicles").delete().lt("updated_at", cutoff);
+  const { error: pruneErr } = await supabase.from("transit_vehicles").delete().lt("updated_at", cutoff);
   if (pruneErr) errors.push(`prune: ${pruneErr.message}`);
 
   const ms = Date.now() - started;
