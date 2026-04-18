@@ -66,6 +66,10 @@ export async function fetchBuses(apiKey: string): Promise<VehicleRow[]> {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Bus API ${res.status}: ${await res.text()}`);
     const json: any = await res.json();
+    const apiErr = json?.["bustime-response"]?.error;
+    if (Array.isArray(apiErr) && apiErr.length > 0) {
+      throw new Error(`Bus API error: ${apiErr.map((e: any) => e?.msg ?? JSON.stringify(e)).join("; ")}`);
+    }
     const vehicles = json?.["bustime-response"]?.vehicle ?? [];
     for (const v of vehicles) {
       const lat = Number(v.lat);
