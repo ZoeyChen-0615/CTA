@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
-import type { Route, RouteHistoryPoint, Vehicle } from "@/lib/types";
+import type { Route, Vehicle, VehicleHistoryPoint } from "@/lib/types";
 import RoutePicker from "./RoutePicker";
 
-const HISTORY_WINDOW_MS = 30 * 60_000;
+const TRAIL_WINDOW_MS = 10 * 60_000;
 
 // Leaflet hits window on import, so the map is client-only.
 const TransitMap = dynamic(() => import("./TransitMap"), { ssr: false });
@@ -16,7 +16,6 @@ type Props = {
   routes: Route[];
   favoriteRouteIds: string[];
   initialVehicles: Vehicle[];
-  initialHistory: RouteHistoryPoint[];
 };
 
 export default function DashboardClient({
@@ -24,23 +23,15 @@ export default function DashboardClient({
   routes,
   favoriteRouteIds: initialFavorites,
   initialVehicles,
-  initialHistory,
 }: Props) {
   const supabaseRef = useRef(createClient());
   const [favorites, setFavorites] = useState<Set<string>>(new Set(initialFavorites));
   const [vehicles, setVehicles] = useState<Map<string, Vehicle>>(
     () => new Map(initialVehicles.map((v) => [v.vehicle_id, v]))
   );
-  const [history, setHistory] = useState<Map<string, RouteHistoryPoint[]>>(() => {
-    const m = new Map<string, RouteHistoryPoint[]>();
-    for (const p of initialHistory) {
-      const arr = m.get(p.route_id) ?? [];
-      arr.push(p);
-      m.set(p.route_id, arr);
-    }
-    return m;
-  });
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [trailsOn, setTrailsOn] = useState(false);
+  const [trails, setTrails] = useState<Map<string, [number, number][]>>(new Map());
 
   // Subscribe to Realtime vehicle changes.
   useEffect(() => {
@@ -61,33 +52,6 @@ export default function DashboardClient({
               const row = payload.new as Vehicle;
               next.set(row.vehicle_id, row);
             }
-            return next;
-          });
-        }
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  // Subscribe to Realtime history inserts so sparklines extend live.
-  useEffect(() => {
-    const supabase = supabaseRef.current;
-    const channel = supabase
-      .channel("transit_route_history")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "transit_route_history" },
-        (payload) => {
-          const row = payload.new as RouteHistoryPoint;
-          const cutoff = Date.now() - HISTORY_WINDOW_MS;
-          setHistory((prev) => {
-            const next = new Map(prev);
-            const arr = next.get(row.route_id) ?? [];
-            const trimmed = arr.filter((p) => new Date(p.ts).getTime() >= cutoff);
-            trimmed.push(row);
-            next.set(row.route_id, trimmed);
             return next;
           });
         }
@@ -140,6 +104,45 @@ export default function DashboardClient({
     return m;
   }, [routes]);
 
+  // Fetch trails for visible vehicles while the trails layer is on, and refresh
+  // on every realtime tick (cheap: we only query history for favorited routes).
+  useEffect(() => {
+    if (!trailsOn) {
+      setTrails(new Map());
+      return;
+    }
+    const routeIds = Array.from(favorites);
+    if (routeIds.length === 0) {
+      setTrails(new Map());
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const since = new Date(Date.now() - TRAIL_WINDOW_MS).toISOString();
+      const { data, error } = await supabaseRef.current
+        .from("transit_vehicle_history")
+        .select("vehicle_id, lat, lon, recorded_at")
+        .in("route_id", routeIds)
+        .gte("recorded_at", since)
+        .order("recorded_at", { ascending: true });
+      if (cancelled) return;
+      if (error) {
+        console.error("trails fetch:", error);
+        return;
+      }
+      const grouped = new Map<string, [number, number][]>();
+      for (const p of (data ?? []) as VehicleHistoryPoint[]) {
+        const arr = grouped.get(p.vehicle_id) ?? [];
+        arr.push([Number(p.lat), Number(p.lon)]);
+        grouped.set(p.vehicle_id, arr);
+      }
+      setTrails(grouped);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [trailsOn, favorites, lastUpdate]);
+
   const totalTracked = vehicles.size;
 
   return (
@@ -166,16 +169,26 @@ export default function DashboardClient({
 
       <div className="flex flex-1 overflow-hidden">
         <aside className="w-80 overflow-y-auto border-r border-gray-800 bg-gray-950 p-4">
-          <RoutePicker
-            routes={routes}
-            favorites={favorites}
-            history={history}
-            onToggle={toggleFavorite}
-          />
+          <RoutePicker routes={routes} favorites={favorites} onToggle={toggleFavorite} />
         </aside>
 
         <main className="relative flex-1">
-          <TransitMap vehicles={visibleVehicles} routeColors={routeColors} />
+          <TransitMap
+            vehicles={visibleVehicles}
+            routeColors={routeColors}
+            trails={trailsOn ? trails : null}
+          />
+          <button
+            onClick={() => setTrailsOn((v) => !v)}
+            className={`absolute right-4 top-4 z-[1000] rounded-lg px-3 py-2 text-xs font-medium shadow-lg transition ${
+              trailsOn
+                ? "bg-yellow-400 text-gray-900 hover:bg-yellow-300"
+                : "bg-gray-900/90 text-gray-100 hover:bg-gray-800"
+            }`}
+            title="Show the last 10 minutes of each favored vehicle's path"
+          >
+            {trailsOn ? "✓ Trails (last 10 min)" : "Show trails"}
+          </button>
           {favorites.size === 0 && (
             <div className="pointer-events-none absolute inset-x-0 top-6 flex justify-center">
               <div className="pointer-events-auto rounded-lg bg-gray-900/90 px-4 py-2 text-sm text-gray-200 shadow-lg">

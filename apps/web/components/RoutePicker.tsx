@@ -1,35 +1,21 @@
 "use client";
 
-import type { Route, RouteHistoryPoint } from "@/lib/types";
-import Sparkline from "./Sparkline";
+import type { Route } from "@/lib/types";
 
 type Props = {
   routes: Route[];
   favorites: Set<string>;
-  history: Map<string, RouteHistoryPoint[]>;
   onToggle: (routeId: string) => void;
 };
 
-export default function RoutePicker({ routes, favorites, history, onToggle }: Props) {
+export default function RoutePicker({ routes, favorites, onToggle }: Props) {
   const trains = routes.filter((r) => r.mode === "train");
   const buses = routes.filter((r) => r.mode === "bus");
 
   return (
     <div className="space-y-6">
-      <Section
-        title="🚆 Train Lines"
-        routes={trains}
-        favorites={favorites}
-        history={history}
-        onToggle={onToggle}
-      />
-      <Section
-        title="🚌 Bus Routes"
-        routes={buses}
-        favorites={favorites}
-        history={history}
-        onToggle={onToggle}
-      />
+      <Section title="🚆 Train Lines" routes={trains} favorites={favorites} onToggle={onToggle} />
+      <Section title="🚌 Bus Routes" routes={buses} favorites={favorites} onToggle={onToggle} />
     </div>
   );
 }
@@ -38,13 +24,11 @@ function Section({
   title,
   routes,
   favorites,
-  history,
   onToggle,
 }: {
   title: string;
   routes: Route[];
   favorites: Set<string>;
-  history: Map<string, RouteHistoryPoint[]>;
   onToggle: (routeId: string) => void;
 }) {
   return (
@@ -55,8 +39,6 @@ function Section({
       <ul className="space-y-1">
         {routes.map((route) => {
           const active = favorites.has(route.route_id);
-          const points = (history.get(route.route_id) ?? []).map((p) => p.vehicle_count);
-          const current = points.length > 0 ? points[points.length - 1] : 0;
           return (
             <li key={route.route_id}>
               <button
@@ -66,18 +48,12 @@ function Section({
                 }`}
               >
                 <span
-                  className="inline-block h-3 w-3 shrink-0 rounded-full"
+                  className="inline-block h-3 w-3 rounded-full"
                   style={{ backgroundColor: route.color }}
                 />
                 <span className="flex-1 truncate">{route.name}</span>
-                <span className="flex items-center gap-2">
-                  <Sparkline points={points} color={route.color} />
-                  <span className="w-6 text-right text-xs tabular-nums text-gray-400">
-                    {current}
-                  </span>
-                  <span className={active ? "text-yellow-400" : "text-gray-600"}>
-                    {active ? "★" : "☆"}
-                  </span>
+                <span className={active ? "text-yellow-400" : "text-gray-600"}>
+                  {active ? "★" : "☆"}
                 </span>
               </button>
             </li>
