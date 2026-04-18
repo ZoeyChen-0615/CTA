@@ -26,6 +26,13 @@ function isChicagoDST(d: Date): boolean {
   return true; // edge months — close enough for a timestamp we don't rely on for logic
 }
 
+// CTA train API echoes the rt param in lowercase ("red", "brn", ...) but our
+// transit_routes table uses the canonical casing ("Red", "Brn", ...) that the
+// API expects on the request side. Normalize the response back to canonical.
+const TRAIN_ROUTE_BY_LOWER = new Map(
+  TRAIN_ROUTES.map((r) => [r.route_id.toLowerCase(), r.route_id])
+);
+
 export async function fetchTrains(apiKey: string): Promise<VehicleRow[]> {
   const rt = TRAIN_ROUTES.map((r) => r.route_id).join(",");
   const url = `${TRAIN_ENDPOINT}?key=${apiKey}&rt=${rt}&outputType=JSON`;
@@ -35,7 +42,8 @@ export async function fetchTrains(apiKey: string): Promise<VehicleRow[]> {
   const routes = json?.ctatt?.route ?? [];
   const rows: VehicleRow[] = [];
   for (const routeObj of routes) {
-    const route_id: string = routeObj["@name"] ?? routeObj.name ?? "";
+    const rawName: string = routeObj["@name"] ?? routeObj.name ?? "";
+    const route_id = TRAIN_ROUTE_BY_LOWER.get(rawName.toLowerCase()) ?? rawName;
     const trains = Array.isArray(routeObj.train) ? routeObj.train : routeObj.train ? [routeObj.train] : [];
     for (const t of trains) {
       const lat = Number(t.lat);
