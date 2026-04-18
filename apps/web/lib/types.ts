@@ -18,3 +18,9 @@ export type Vehicle = {
   source_updated_at: string | null;
   updated_at: string;
 };
+
+export type RouteHistoryPoint = {
+  route_id: string;
+  ts: string;
+  vehicle_count: number;
+};

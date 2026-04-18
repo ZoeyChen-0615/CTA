@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
-import type { Route, Vehicle } from "@/lib/types";
+import type { Route, RouteHistoryPoint, Vehicle } from "@/lib/types";
 import RoutePicker from "./RoutePicker";
+
+const HISTORY_WINDOW_MS = 30 * 60_000;
 
 // Leaflet hits window on import, so the map is client-only.
 const TransitMap = dynamic(() => import("./TransitMap"), { ssr: false });
@@ -14,6 +16,7 @@ type Props = {
   routes: Route[];
   favoriteRouteIds: string[];
   initialVehicles: Vehicle[];
+  initialHistory: RouteHistoryPoint[];
 };
 
 export default function DashboardClient({
@@ -21,12 +24,22 @@ export default function DashboardClient({
   routes,
   favoriteRouteIds: initialFavorites,
   initialVehicles,
+  initialHistory,
 }: Props) {
   const supabaseRef = useRef(createClient());
   const [favorites, setFavorites] = useState<Set<string>>(new Set(initialFavorites));
   const [vehicles, setVehicles] = useState<Map<string, Vehicle>>(
     () => new Map(initialVehicles.map((v) => [v.vehicle_id, v]))
   );
+  const [history, setHistory] = useState<Map<string, RouteHistoryPoint[]>>(() => {
+    const m = new Map<string, RouteHistoryPoint[]>();
+    for (const p of initialHistory) {
+      const arr = m.get(p.route_id) ?? [];
+      arr.push(p);
+      m.set(p.route_id, arr);
+    }
+    return m;
+  });
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   // Subscribe to Realtime vehicle changes.
@@ -48,6 +61,33 @@ export default function DashboardClient({
               const row = payload.new as Vehicle;
               next.set(row.vehicle_id, row);
             }
+            return next;
+          });
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Subscribe to Realtime history inserts so sparklines extend live.
+  useEffect(() => {
+    const supabase = supabaseRef.current;
+    const channel = supabase
+      .channel("transit_route_history")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "transit_route_history" },
+        (payload) => {
+          const row = payload.new as RouteHistoryPoint;
+          const cutoff = Date.now() - HISTORY_WINDOW_MS;
+          setHistory((prev) => {
+            const next = new Map(prev);
+            const arr = next.get(row.route_id) ?? [];
+            const trimmed = arr.filter((p) => new Date(p.ts).getTime() >= cutoff);
+            trimmed.push(row);
+            next.set(row.route_id, trimmed);
             return next;
           });
         }
@@ -126,7 +166,12 @@ export default function DashboardClient({
 
       <div className="flex flex-1 overflow-hidden">
         <aside className="w-80 overflow-y-auto border-r border-gray-800 bg-gray-950 p-4">
-          <RoutePicker routes={routes} favorites={favorites} onToggle={toggleFavorite} />
+          <RoutePicker
+            routes={routes}
+            favorites={favorites}
+            history={history}
+            onToggle={toggleFavorite}
+          />
         </aside>
 
         <main className="relative flex-1">
