@@ -64,7 +64,7 @@ export default function LoginPage() {
         {step === "email" ? (
           <>
             <p className="mb-6 text-sm text-gray-400">
-              We&apos;ll email you a 6-digit code. No password needed.
+              We&apos;ll email you a one-time code. No password needed.
             </p>
             <form onSubmit={sendCode} className="flex flex-col gap-3">
               <input
@@ -90,7 +90,7 @@ export default function LoginPage() {
         ) : (
           <>
             <p className="mb-2 text-sm text-gray-400">
-              Enter the 6-digit code we sent to <strong>{email}</strong>.
+              Enter the code we sent to <strong>{email}</strong>.
             </p>
             <p className="mb-6 text-xs text-gray-500">
               (Check the email — the code is right above or below the link.)
@@ -102,11 +102,11 @@ export default function LoginPage() {
                 pattern="[0-9]*"
                 autoComplete="one-time-code"
                 required
-                maxLength={6}
-                placeholder="123456"
+                maxLength={10}
+                placeholder="12345678"
                 value={code}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                className="rounded-lg border border-gray-700 bg-gray-950 px-4 py-3 text-center text-2xl tracking-[0.4em] text-white outline-none focus:border-white"
+                className="rounded-lg border border-gray-700 bg-gray-950 px-4 py-3 text-center text-2xl tracking-[0.3em] text-white outline-none focus:border-white"
               />
               <button
                 type="submit"
