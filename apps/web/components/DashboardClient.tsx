@@ -32,6 +32,7 @@ export default function DashboardClient({
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [trailsOn, setTrailsOn] = useState(false);
   const [trails, setTrails] = useState<Map<string, [number, number][]>>(new Map());
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Subscribe to Realtime vehicle changes.
   useEffect(() => {
@@ -168,9 +169,11 @@ export default function DashboardClient({
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        <aside className="w-80 overflow-y-auto border-r border-gray-800 bg-gray-950 p-4">
-          <RoutePicker routes={routes} favorites={favorites} onToggle={toggleFavorite} />
-        </aside>
+        {sidebarOpen && (
+          <aside className="w-80 shrink-0 overflow-y-auto border-r border-gray-800 bg-gray-950 p-4">
+            <RoutePicker routes={routes} favorites={favorites} onToggle={toggleFavorite} />
+          </aside>
+        )}
 
         <main className="relative flex-1">
           <TransitMap
@@ -178,6 +181,36 @@ export default function DashboardClient({
             routeColors={routeColors}
             trails={trailsOn ? trails : null}
           />
+          <button
+            type="button"
+            onClick={() => setSidebarOpen((open) => !open)}
+            className="absolute left-4 top-4 z-[1000] inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gray-900/90 text-gray-100 shadow-lg transition hover:bg-gray-800"
+            aria-label={sidebarOpen ? "Collapse route panel" : "Show route panel"}
+            title={sidebarOpen ? "Collapse route panel" : "Show route panel"}
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              {sidebarOpen ? (
+                <>
+                  <path d="M15 18l-6-6 6-6" />
+                  <path d="M20 4v16" />
+                </>
+              ) : (
+                <>
+                  <path d="M9 18l6-6-6-6" />
+                  <path d="M4 4v16" />
+                </>
+              )}
+            </svg>
+          </button>
           <button
             onClick={() => setTrailsOn((v) => !v)}
             className={`absolute right-4 top-4 z-[1000] rounded-lg px-3 py-2 text-xs font-medium shadow-lg transition ${
